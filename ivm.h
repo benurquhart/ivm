@@ -26,6 +26,7 @@ namespace ivm {
 		constexpr auto IVM_CMP = 7;
 		constexpr auto IVM_JNE = 8;
 		constexpr auto IVM_CNA = 9;
+		constexpr auto IVM_RET = 10;
 
 		constexpr auto IVM_DEREF_NONE = 0;
 		constexpr auto IVM_DEREF_SRC = 1;
@@ -76,7 +77,7 @@ namespace ivm {
 
 	#define DEFINE_INSTR(name, opcode)								\
 	template <typename T = ivm_default>								\
-	constexpr auto name(ivm_rgstr rgstr1, ivm_rgstr rgstr2 = 0)		\
+	constexpr auto name(ivm_rgstr rgstr1 = 0, ivm_rgstr rgstr2 = 0)	\
 		-> uint16_t {												\
 		return build_instr<T>(rgstr1, rgstr2, opcode);				\
 	}
@@ -87,8 +88,9 @@ namespace ivm {
 	DEFINE_INSTR(XOR, IVM_XOR)
 	DEFINE_INSTR(LEA, IVM_LEA)
 	DEFINE_INSTR(CMP, IVM_CMP)
-	DEFINE_INSTR(JNE, IVM_CMP, 0)
-	DEFINE_INSTR(CNA, IVM_CMP, 0)
+	DEFINE_INSTR(JNE, IVM_JNE)
+	DEFINE_INSTR(CNA, IVM_CNA)
+	DEFINE_INSTR(RET, IVM_RET)
 
 	#undef DEFINE_INSTR
 
@@ -110,7 +112,7 @@ namespace ivm {
 
 			const auto prgm_instr = ((unsigned short)(prgm[prgm_counter]) ^ ivm_seed);
 
-			const auto instr = (unsigned char)(prgm_instr & 0xFF);
+			const auto instr = (unsigned char)((prgm_instr & 0xFF));
 			const auto oprnd = (unsigned char)((prgm_instr >> 8) & 0xFF);
 
 			const auto immv = GET_IMMV(instr);
@@ -166,10 +168,14 @@ namespace ivm {
 				rgstr[0] = ((ivm_rgstr(*)(...)) * src)(rgstr[1], rgstr[2], rgstr[3], rgstr[4], rgstr[5]);
 				break;
 			}
+			case IVM_RET: {
+				goto prgm_end;
+			}
 			}
 
 			prgm_counter += immv ? 2 : 1;
 		};
+		prgm_end:
 
 		if (dbg) {
 
