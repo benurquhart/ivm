@@ -1,6 +1,8 @@
 #pragma once
 #include <iostream>
 #include <vector>
+#include <cstring>
+#include <cstdint>
 
 namespace ivm {
 
@@ -172,11 +174,12 @@ namespace ivm {
 		if (dbg) {
 
 			printf(
-				"R0: 0x%IX\n"
-				"R1: 0x%IX\n"
-				"R2: 0x%IX\n"
-				"R3: 0x%IX\n"
-				"R4: 0x%IX\n",
+				"R0: 0x%lx\n"
+				"R1: 0x%lx\n"
+				"R2: 0x%lx\n"
+				"R3: 0x%lx\n"
+				"R4: 0x%lx\n"
+				"R5: 0x%lx",
 
 				rgstr[0],
 				rgstr[1],
