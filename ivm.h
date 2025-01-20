@@ -5,7 +5,6 @@
 #include <cstdint>
 
 namespace ivm {
-
 	typedef uintptr_t ivm_instr;
 	typedef uintptr_t ivm_rgstr;
 
@@ -28,7 +27,6 @@ namespace ivm {
 		constexpr auto IVM_CNA = 9;
 		constexpr auto IVM_RET = 10;
 
-		constexpr auto IVM_DEREF_NONE = 0;
 		constexpr auto IVM_DEREF_SRC = 1;
 		constexpr auto IVM_DEREF_DST = 2;
 
@@ -39,32 +37,61 @@ namespace ivm {
 		template <typename T = ivm_default>
 		constexpr auto calc_deref() -> int {
 
-			return std::is_pointer_v<T> ? IVM_DEREF_DST : (!std::is_same_v<T, ivm_default> ? IVM_DEREF_SRC : IVM_DEREF_NONE);
+			return std::is_pointer_v<T> ? IVM_DEREF_DST : (!std::is_same_v<T, ivm_default> ? IVM_DEREF_SRC : 0);
 		}
 
 		template <typename T = ivm_default>
 		constexpr auto calc_size() -> int {
 
-			return (sizeof(T) > 8 ? 7 : sizeof(T) - 1);
+			using T_SIZE = typename std::remove_pointer<T>::type;
+
+			return (sizeof(T_SIZE) > 8 ? 7 : sizeof(T_SIZE) - 1);
 		}
 
 		template <typename T = ivm_default>
-		constexpr auto build_instr(ivm_rgstr rgstr1, ivm_rgstr rgstr2, int opcode) -> ivm_instr {
+		constexpr auto build_instr(ivm_rgstr rgstr_1, ivm_rgstr rgstr_2, int opcode) -> ivm_instr {
 
 			constexpr auto deref = calc_deref<T>();
 			constexpr auto size = calc_size<T>();
 
-			auto immv_flag = rgstr2 == 0 ? (IVM_IMMV << 7) : 0;
+			rgstr_1--; if (rgstr_2) rgstr_2--;
 
-			rgstr1--;
-			if (rgstr2) {
-				rgstr2--;
-			}
+			// 00: [deref  | reg1 | reg2]
 
-			return (unsigned short)((((deref << 6) | (rgstr2 << 3) | rgstr1) << 8) | ((immv_flag) | (size << 4) | opcode)) ^ ivm_seed;
+			auto result = (unsigned short)((deref << 6) | (rgstr_2 << 3) | rgstr_1);
+
+			result <<= 8;
 
 			// 04: [opcode | size | immv]
-			// 00: [deref  | reg1 | reg2]
+
+			result |= (rgstr_2 == 0 ? (IVM_IMMV << 7) : 0) | (size << 4) | opcode;
+
+			return result ^ ivm_seed;
+		}
+
+		constexpr auto get_immv(uint16_t instr) -> uint16_t {
+
+			return (instr >> 7) & IVM_IMMV;
+		}
+
+		constexpr auto get_size(uint16_t instr) -> uint16_t {
+
+			return ((instr >> 4) & 0x7) + 1;
+		}
+
+		constexpr auto get_deref(uint8_t oprnd) -> uint16_t {
+
+			return (oprnd >> 6) & 0x3;
+		}
+
+		constexpr auto get_rgstr_1(uint8_t oprnd) -> uint16_t {
+
+			return oprnd & 0x7;
+		}
+
+		constexpr auto get_rgstr_2(uint8_t oprnd) -> uint16_t {
+
+			return (oprnd >> 3) & 0x7;
 		}
 	}
 
@@ -75,11 +102,11 @@ namespace ivm {
 	constexpr auto R4 = ivm_rgstr(5);
 	constexpr auto R5 = ivm_rgstr(6);
 
-	#define DEFINE_INSTR(name, opcode)								\
-	template <typename T = ivm_default>								\
-	constexpr auto name(ivm_rgstr rgstr1 = 0, ivm_rgstr rgstr2 = 0)	\
-		-> uint16_t {												\
-		return build_instr<T>(rgstr1, rgstr2, opcode);				\
+	#define DEFINE_INSTR(name, opcode)									\
+	template <typename T = ivm_default>									\
+	constexpr auto name(ivm_rgstr rgstr_1 = 0, ivm_rgstr rgstr_2 = 0)	\
+		-> ivm_instr {													\
+		return build_instr<T>(rgstr_1, rgstr_2, opcode);				\
 	}
 
 	DEFINE_INSTR(MOV, IVM_MOV)
@@ -94,12 +121,6 @@ namespace ivm {
 
 	#undef DEFINE_INSTR
 
-	#define GET_IMMV(instr) (((instr) >> 7) & IVM_IMMV)
-	#define GET_SIZE(instr) ((((instr) >> 4) & 0x7) + 1)
-	#define GET_DEREF(oprnd) (((oprnd) >> 6) & 0x3)
-	#define GET_RGSTR1(oprnd) ((oprnd) & 0x7)
-	#define GET_RGSTR2(oprnd) (((oprnd) >> 3) & 0x7)
-		
 	//
 
 	auto ivm(const std::vector<ivm_instr>& prgm, bool dbg = true) -> void {
@@ -110,90 +131,91 @@ namespace ivm {
 
 		while (prgm_counter < prgm.size()) {
 
-			const auto prgm_instr = ((unsigned short)(prgm[prgm_counter]) ^ ivm_seed);
+			const auto prgm_instr = (unsigned short)(prgm[prgm_counter]) ^ ivm_seed;
 
 			const auto instr = (unsigned char)((prgm_instr & 0xFF));
 			const auto oprnd = (unsigned char)((prgm_instr >> 8) & 0xFF);
 
-			const auto immv = GET_IMMV(instr);
-			const auto size = GET_SIZE(instr);
+			const auto immv = get_immv(instr);
+			const auto size = get_size(instr);
 
-			const auto deref = GET_DEREF(oprnd);
+			const auto deref = get_deref(oprnd);
 
-			const auto rgstr1 = GET_RGSTR1(oprnd);
-			const auto rgstr2 = GET_RGSTR2(oprnd);
+			const auto rgstr_1 = get_rgstr_1(oprnd);
+			const auto rgstr_2 = get_rgstr_2(oprnd);
 
-			auto src = immv ? &prgm[prgm_counter + 1] : &rgstr[rgstr2];
+			auto src = immv ? &prgm[prgm_counter + 1] : &rgstr[rgstr_2];
 
-			auto dst = &rgstr[rgstr1];
+			auto dst = &rgstr[rgstr_1];
+
+			if (deref == IVM_DEREF_SRC) {
+
+				src = *(uintptr_t**)src;
+			}
+			else if (deref == IVM_DEREF_DST) {
+
+				dst = *(uintptr_t**)dst;
+			}
 
 			switch (instr & 0xF) {
 
-			case IVM_MOV: {
-				memcpy(deref == 1 ? dst : (deref == 2 ? *(void**)dst : dst), deref == 1 ? *(void**)src : src, size);
-				break;
-			}
-			case IVM_ADD: {
-				*dst += *src;
-				break;
-			}
-			case IVM_SUB: {
-				*dst -= *src;
-				break;
-			}
-			case IVM_AND: {
-				*dst &= *src;
-				break;
-			}
-			case IVM_XOR: {
-				*dst ^= *src;
-				break;
-			}
-			case IVM_LEA: {
-				*dst = (uintptr_t)src;
-				break;
-			}
-			case IVM_CMP: {
-				zf = ((*dst - *src) == 0);
-				break;
-			}
-			case IVM_JNE: {
-				if (zf == 0) {
-					prgm_counter = *src;
-					continue;
+				case IVM_MOV: {
+					memcpy(dst, src, size);
+					break;
 				}
-				break;
-			}
-			case IVM_CNA: {
-				rgstr[0] = ((ivm_rgstr(*)(...)) * src)(rgstr[1], rgstr[2], rgstr[3], rgstr[4], rgstr[5]);
-				break;
-			}
-			case IVM_RET: {
-				goto prgm_end;
-			}
+				case IVM_ADD: {
+					*dst += *src;
+					break;
+				}
+				case IVM_SUB: {
+					*dst -= *src;
+					break;
+				}
+				case IVM_AND: {
+					*dst &= *src;
+					break;
+				}
+				case IVM_XOR: {
+					*dst ^= *src;
+					break;
+				}
+				case IVM_LEA: {
+					*dst = (uintptr_t)src;
+					break;
+				}
+				case IVM_CMP: {
+					zf = ((*dst - *src) == 0);
+					break;
+				}
+				case IVM_JNE: {
+					if (zf == 0) {
+						prgm_counter = *(int*)src;
+						continue;
+					}
+					break;
+				}
+				case IVM_CNA: {
+					rgstr[0] = ((ivm_rgstr(*)(...))*src)(rgstr[1], rgstr[2], rgstr[3], rgstr[4], rgstr[5]);
+					break;
+				}
+				case IVM_RET: {
+					goto prgm_end;
+				}
 			}
 
 			prgm_counter += immv ? 2 : 1;
 		};
+
 		prgm_end:
 
 		if (dbg) {
 
-			printf(
-				"R0: 0x%lx\n"
-				"R1: 0x%lx\n"
-				"R2: 0x%lx\n"
-				"R3: 0x%lx\n"
-				"R4: 0x%lx\n"
-				"R5: 0x%lx",
-
-				rgstr[0],
-				rgstr[1],
-				rgstr[2],
-				rgstr[3],
-				rgstr[4],
-				rgstr[5]
-			);
+			std::cout << "R0: 0x" << std::hex << rgstr[0] << std::endl;
+			std::cout << "R1: 0x" << std::hex << rgstr[1] << std::endl;
+			std::cout << "R2: 0x" << std::hex << rgstr[2] << std::endl;
+			std::cout << "R3: 0x" << std::hex << rgstr[3] << std::endl;
+			std::cout << "R4: 0x" << std::hex << rgstr[4] << std::endl;
+			std::cout << "R5: 0x" << std::hex << rgstr[5] << std::endl;
 		}
 	}
 }

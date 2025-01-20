@@ -15,9 +15,9 @@ IVM comes with 6 registers **R0**, **R1**, **R2**, **R3**, **R4**, **R5**. Regis
 * Instruction(Register), Immediate value
 ```
 {
-	MOV(R0), 123     	// store immediate value '123' into R0
-	MOV(R1, R0)     	// load the value in R0 into R1
-	LEA(R2, R1)		// load the address of R1 into R2
+	MOV(R0), 123,     	// store immediate value '123' into R0
+	MOV(R1, R0),     	// load the value in R0 into R1
+	LEA(R2, R1),		// load the address of R1 into R2
 	MOV<uint8_t>(R1, R2),	// load the byte from the memory location pointed to by R2 into R1
 	MOV<uint8_t*>(R2, R0),	// store the byte in R0 into the memory location pointed to by R2
 }
