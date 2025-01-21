@@ -1,7 +1,7 @@
 IVM (Inline Virtual Machine)
 ====
 
-The *inline virtual machine* (IVM) allows you to write virtual instructions as structured, human-readable bytecode directly in C++ code. The VM processes the instructions sequentially or based on control flow (e.g., jumps). Each instruction corresponds to a custom operation, such as arithmetic, comparison, or branching.  Designed with a small form factor, the IVM is lightweight and easily embeddable, making it ideal for streamlined and efficient integration into C++ applications.
+The *inline virtual machine* (IVM) allows you to write virtual instructions as structured, human-readable bytecode directly in C++ code, which is assembled at compile time. This eliminates the need for an external assembler. The VM processes the instructions sequentially or based on control flow (e.g., jumps). Each instruction corresponds to a custom operation, such as arithmetic, comparison, or branching.  Designed with a small form factor, the IVM is lightweight and easily embeddable, making it ideal for streamlined and efficient integration into C++ applications.
 
 
 Language Overview
@@ -19,7 +19,7 @@ IVM comes with 6 registers **R0**, **R1**, **R2**, **R3**, **R4**, **R5**. Regis
 	MOV(R1, R0),     	// load the value in R0 into R1
 	LEA(R2, R1),		// load the address of R1 into R2
 	MOV<uint8_t>(R1, R2),	// load the byte from the memory location pointed to by R2 into R1
-	MOV<uint8_t*>(R2, R0),	// store the byte in R0 into the memory location pointed to by R2
+	MOV<uint8_t*>(R2, R0)	// store the byte in R0 into the memory location pointed to by R2
 }
 ```
 Note: IVM does not have a stack.
@@ -38,3 +38,7 @@ Note: IVM does not have a stack.
 | `JNE`           | `8`        | Jump to a location if the values are not equal.       |
 | `CNA`           | `9`        | Call a native address.      						   |
 | `RET`           | `10`       | Exit program.			     						   |
+
+### Requirements
+
+* **C++14** or newer *(e.g., GCC 5.0+, Clang 3.4+, MSVC 2015+)*

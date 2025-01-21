@@ -8,6 +8,8 @@ namespace ivm {
 	typedef uintptr_t ivm_instr;
 	typedef uintptr_t ivm_rgstr;
 
+	typedef uint8_t ivm_opcode;
+
 	constexpr auto ivm_seed = 5432167890123456789;
 
 	namespace {
@@ -49,24 +51,24 @@ namespace ivm {
 		}
 
 		template <typename T = ivm_default>
-		constexpr auto build_instr(ivm_rgstr rgstr_1, ivm_rgstr rgstr_2, int opcode) -> ivm_instr {
+		constexpr auto build_instr(ivm_rgstr rgstr_1, ivm_rgstr rgstr_2, ivm_opcode opcode) -> ivm_instr {
 
 			constexpr auto deref = calc_deref<T>();
 			constexpr auto size = calc_size<T>();
 
+			auto immv_flag = rgstr_2 == 0 ? (IVM_IMMV << 7) : 0;
+
 			rgstr_1--; if (rgstr_2) rgstr_2--;
 
-			// 00: [deref  | reg1 | reg2]
-
-			auto result = (unsigned short)((deref << 6) | (rgstr_2 << 3) | rgstr_1);
-
-			result <<= 8;
+			return (unsigned short)((((deref << 6) | (rgstr_2 << 3) | rgstr_1) << 8) | ((immv_flag) | (size << 4) | opcode)) ^ ivm_seed;
 
 			// 04: [opcode | size | immv]
+			// 00: [deref  | reg1 | reg2]
+		}
+		
+		constexpr auto get_opcode(uint16_t instr) -> ivm_opcode {
 
-			result |= (rgstr_2 == 0 ? (IVM_IMMV << 7) : 0) | (size << 4) | opcode;
-
-			return result ^ ivm_seed;
+			return instr & 0xF;
 		}
 
 		constexpr auto get_immv(uint16_t instr) -> uint16_t {
@@ -102,11 +104,11 @@ namespace ivm {
 	constexpr auto R4 = ivm_rgstr(5);
 	constexpr auto R5 = ivm_rgstr(6);
 
-	#define DEFINE_INSTR(name, opcode)									\
-	template <typename T = ivm_default>									\
+	#define DEFINE_INSTR(name, opcode)					\
+	template <typename T = ivm_default>					\
 	constexpr auto name(ivm_rgstr rgstr_1 = 0, ivm_rgstr rgstr_2 = 0)	\
-		-> ivm_instr {													\
-		return build_instr<T>(rgstr_1, rgstr_2, opcode);				\
+		-> ivm_instr {							\
+		return build_instr<T>(rgstr_1, rgstr_2, opcode);		\
 	}
 
 	DEFINE_INSTR(MOV, IVM_MOV)
@@ -135,6 +137,8 @@ namespace ivm {
 
 			const auto instr = (unsigned char)((prgm_instr & 0xFF));
 			const auto oprnd = (unsigned char)((prgm_instr >> 8) & 0xFF);
+			
+			const auto opcode = get_opcode(instr);
 
 			const auto immv = get_immv(instr);
 			const auto size = get_size(instr);
@@ -157,7 +161,7 @@ namespace ivm {
 				dst = *(uintptr_t**)dst;
 			}
 
-			switch (instr & 0xF) {
+			switch (opcode) {
 
 				case IVM_MOV: {
 					memcpy(dst, src, size);
@@ -195,18 +199,23 @@ namespace ivm {
 					break;
 				}
 				case IVM_CNA: {
-					rgstr[0] = ((ivm_rgstr(*)(...))*src)(rgstr[1], rgstr[2], rgstr[3], rgstr[4], rgstr[5]);
+					rgstr[0] = ((ivm_rgstr(*)(...))*src)(
+						rgstr[1],
+						rgstr[2],
+						rgstr[3],
+						rgstr[4],
+						rgstr[5]
+					);
 					break;
 				}
 				case IVM_RET: {
-					goto prgm_end;
+					prgm_counter = prgm.size();
+					break;
 				}
 			}
 
 			prgm_counter += immv ? 2 : 1;
 		};
-
-		prgm_end:
 
 		if (dbg) {
 
