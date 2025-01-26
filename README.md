@@ -7,9 +7,9 @@ The *inline virtual machine* (IVM) allows you to write virtual instructions as s
 Language Overview
 -----------------
 
-### Registers, Immediate Values
+### Registers, Loads, and Stores
 
-IVM comes with 6 registers **R0**, **R1**, **R2**, **R3**, **R4**, **R5**. Registers can be used in the following formats:
+IVM comes with 8 registers **R0**, **R1**, **R2**, **R3**, **R4**, **R5**, **R6**, **SP**. Registers can be used in the following formats:
 
 * Instruction(Register, Register)
 * Instruction(Register), Immediate value
@@ -22,8 +22,7 @@ IVM comes with 6 registers **R0**, **R1**, **R2**, **R3**, **R4**, **R5**. Regis
 	MOV<uint8_t*>(R2, R0)	// store the byte in R0 into the memory location pointed to by R2
 }
 ```
-Note: IVM does not have a stack.
-
+Note: **SP** is reserved for the stack pointer.  
 ### Instruction Set Overview
 
 | **Instruction** | **Opcode** | **Description**                                       |
@@ -37,7 +36,9 @@ Note: IVM does not have a stack.
 | `CMP`           | `7`        | Compare two values and set zero flag.                 |
 | `JNE`           | `8`        | Jump to a location if the values are not equal.       |
 | `CNA`           | `9`        | Call a native address.      						   |
-| `RET`           | `10`       | Exit program.			     						   |
+| `PUSH`          | `10`       | Push a value onto the stack.  						   |
+| `POP`           | `11`       | Pop a value off the stack.    						   |
+| `RET`           | `12`       | Exit program.			     						   |
 
 ### Requirements
 
