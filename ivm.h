@@ -13,6 +13,7 @@ namespace ivm {
 
 		typedef uintptr_t ivm_instr_t;
 		typedef uintptr_t ivm_rgstr_t;
+		typedef uintptr_t ivm_value_t;
 		typedef uint8_t ivm_opcode_t;
 		typedef uint8_t ivm_stack_t;
 
@@ -62,7 +63,7 @@ namespace ivm {
 			constexpr auto deref = calc_deref<T>();
 			constexpr auto size = calc_size<T>();
 
-			const auto immv_flag = rgstr_2 == 0 ? (IVM_IMMV << 7) : 0;
+			const auto immv_flag = (rgstr_2 == 0) ? (IVM_IMMV << 7) : 0;
 
 			rgstr_1--; if (rgstr_2) rgstr_2--;
 
@@ -146,7 +147,7 @@ namespace ivm {
 	template <typename T = internal::ivm_default_t>
 	constexpr auto PUSH(internal::ivm_rgstr_t rgstr_1 = 0) -> const internal::ivm_instr_t {
 
-		return internal::build_instr<T>(rgstr_1, 1, internal::IVM_PUSH);
+		return internal::build_instr<T>(1, rgstr_1, internal::IVM_PUSH);
 	}
 
 	template <typename T = internal::ivm_default_t>
@@ -184,21 +185,33 @@ namespace ivm {
 			const auto rgstr_1 = internal::get_rgstr_1(oprnd);
 			const auto rgstr_2 = internal::get_rgstr_2(oprnd);
 
-			auto src = immv ? &prgm[prgm_counter + 1] : &rgstr[rgstr_2];
+			auto src = (opcode == internal::IVM_POP)
 
-			auto dst = &rgstr[rgstr_1];
+				? reinterpret_cast<internal::ivm_value_t*>(rgstr[7])
+
+				: (immv ? const_cast<internal::ivm_value_t*>(&prgm[prgm_counter + 1])
+
+					: reinterpret_cast<internal::ivm_value_t*>(&rgstr[rgstr_2]));
+
+			auto dst = (opcode == internal::IVM_PUSH)
+
+				? reinterpret_cast<internal::ivm_value_t*>(rgstr[7] -= size)
+
+				: reinterpret_cast<internal::ivm_value_t*>(&rgstr[rgstr_1]);
 
 			if (deref == internal::IVM_DEREF_SRC) {
 
-				src = *(std::uintptr_t**)src;
+				src = *reinterpret_cast<internal::ivm_value_t**>(src);
 			}
 			else if (deref == internal::IVM_DEREF_DST) {
 
-				dst = *(std::uintptr_t**)dst;
+				dst = *reinterpret_cast<internal::ivm_value_t**>(dst);
 			}
 
 			switch (opcode) {
 
+			case internal::IVM_PUSH:
+			case internal::IVM_POP:
 			case internal::IVM_MOV: {
 
 				memcpy(dst, src, size);
@@ -265,26 +278,17 @@ namespace ivm {
 
 				break;
 			}
-			case internal::IVM_PUSH: {
-
-				memcpy(reinterpret_cast<void*>(rgstr[7] -= sizeof(internal::ivm_rgstr_t)), dst, sizeof(internal::ivm_rgstr_t));
-
-				break;
-			}
-			case internal::IVM_POP: {
-				
-				memcpy(dst, reinterpret_cast<void*>(rgstr[7]), sizeof(internal::ivm_rgstr_t));
-
-				rgstr[7] += sizeof(internal::ivm_rgstr_t);
-
-				break;
-			}
 			case internal::IVM_RET: {
 
 				prgm_counter = static_cast<int>(prgm.size());
 
 				break;
 			}
+			}
+
+			if (opcode == internal::IVM_POP) {
+
+				rgstr[7] += size;
 			}
 
 			prgm_counter += immv ? 2 : 1;
