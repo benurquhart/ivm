@@ -46,7 +46,7 @@ Note: **SP** is reserved for the stack pointer.
 
 ```
 {
-    MOV(R0), 4,             // store the immediate value '789' into R0
+    MOV(R0), 4,             // store the immediate value '4' into R0
     JMP(R0),                // jump to the location in R0
     RET(),
     ADD(R1), 1,             // add the immediate value '1' to R1
@@ -58,21 +58,21 @@ Note: Jumps use the program counter rather than a memory address.
 
 ### Instruction Set Overview
 
-| **Instruction** | **Opcode** | **Description**                                      |
-|-----------------|------------|------------------------------------------------------|
-| `MOV`           | `1`        | Move a value into a register.						  |
-| `ADD`           | `2`        | Add two values and store the result.                 |
-| `SUB`           | `3`        | Subtract one value from another.                     |
-| `AND`           | `4`        | Perform bitwise AND on two values.                   |
-| `XOR`           | `5`        | Perform bitwise XOR on two values.                   |
-| `LEA`           | `6`        | Load the effective address of an operand.            |
-| `CMP`           | `7`        | Compare two values and set zero flag.                |
-| `JMP`           | `8`        | Jump to a location unconditionally.                  |
-| `JNE`           | `9`        | Jump to a location if the values are not equal.      |
-| `CALL`          | `10`       | Call a native address outside the vm. 				  |
-| `PUSH`          | `11`       | Push a value onto the top of the stack. 			  |
-| `POP`           | `12`       | Pop a value off the top of the stack.  			  |
-| `RET`           | `13`       | Exit program.			     						  |
+| **Instruction** | **Opcode** | **Description**                                                                          |
+|-----------------|------------|------------------------------------------------------------------------------------------|
+| `MOV`           | `1`        | Move a value into a register.						                                      |
+| `ADD`           | `2`        | Add two values and store the result in a register.                                       |
+| `SUB`           | `3`        | Subtract one value from another and store the result in a register.                      |
+| `AND`           | `4`        | Perform a bitwise AND operation on two values and store the result.                      |
+| `XOR`           | `5`        | Perform a bitwise XOR operation on two values and store the result.                      |
+| `LEA`           | `6`        | Load the effective address of an operand into a register.                                |
+| `CMP`           | `7`        | Compare two values, set the zero flag if equal, or clear it if not.                      |
+| `JMP`           | `8`        | Jump to a specified location unconditionally.                                            |
+| `JNE`           | `9`        | Jump to a specified location if the compared values are not equal (ZF = 0).              |
+| `CALL`          | `10`       | Call a native address outside the virtual machine environment. 				          |
+| `PUSH`          | `11`       | Push a value onto the top of the stack. 			                                      |
+| `POP`           | `12`       | Pop the top value off the stack and store it in a register. 			                  |
+| `RET`           | `13`       | Exit program.			     						                                      |
 
 ### Requirements
 
