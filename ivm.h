@@ -11,17 +11,20 @@ namespace ivm {
 
 	namespace internal {
 
-		typedef uintptr_t ivm_instr_t;
-		typedef uintptr_t ivm_rgstr_t;
-		typedef uintptr_t ivm_value_t;
-		typedef uint8_t ivm_opcode_t;
-		typedef uint8_t ivm_stack_t;
+		typedef std::uintptr_t ivm_instr_t;
+		typedef std::uintptr_t ivm_rgstr_t;
+		typedef std::uintptr_t ivm_value_t;
+
+		typedef std::uint8_t ivm_opcode_t;
+		typedef std::uint8_t ivm_stack_t;
 
 		typedef struct _ivm_default_t {
 
-			uint8_t _padd[8];
+			std::uint8_t _padd[8];
 
 		} ivm_default_t, *pivm_default_t;
+
+		//
 
 		constexpr auto IVM_MOV = 1;
 		constexpr auto IVM_ADD = 2;
@@ -31,10 +34,11 @@ namespace ivm {
 		constexpr auto IVM_LEA = 6;
 		constexpr auto IVM_CMP = 7;
 		constexpr auto IVM_JNE = 8;
-		constexpr auto IVM_CNA = 9;
-		constexpr auto IVM_PUSH = 10;
-		constexpr auto IVM_POP = 11;
-		constexpr auto IVM_RET = 12;
+		constexpr auto IVM_JMP = 9;
+		constexpr auto IVM_CALL = 10;
+		constexpr auto IVM_PUSH = 11;
+		constexpr auto IVM_POP = 12;
+		constexpr auto IVM_RET = 13;
 
 		constexpr auto IVM_DEREF_SRC = 1;
 		constexpr auto IVM_DEREF_DST = 2;
@@ -52,9 +56,9 @@ namespace ivm {
 		template <typename T = ivm_default_t>
 		constexpr auto calc_size() -> const std::size_t {
 
-			using T_SIZE = typename std::remove_pointer<T>::type;
+			using t_size = typename std::remove_pointer<T>::type;
 
-			return (sizeof(T_SIZE) > 8 ? 7 : sizeof(T_SIZE) - 1);
+			return (sizeof(t_size) > 8 ? 7 : sizeof(t_size) - 1);
 		}
 
 		template <typename T = ivm_default_t>
@@ -124,37 +128,28 @@ namespace ivm {
 	constexpr auto R6 = internal::ivm_rgstr_t(7);
 	constexpr auto SP = internal::ivm_rgstr_t(8);
 
-	#define DEFINE_INSTR(name, opcode)								\
+	#define DEFINE_INSTR(name, opcode, unary)							\
 	template <typename T = internal::ivm_default_t>							\
 	constexpr auto name(internal::ivm_rgstr_t rgstr_1 = 0, internal::ivm_rgstr_t rgstr_2 = 0)	\
 		-> internal::ivm_instr_t {								\
 													\
-		return internal::build_instr<T>(rgstr_1, rgstr_2, opcode);				\
+		return internal::build_instr<T>(rgstr_1, unary ? rgstr_1 : rgstr_2, opcode);		\
 	}
 
-	DEFINE_INSTR(MOV, internal::IVM_MOV)
-	DEFINE_INSTR(ADD, internal::IVM_ADD)
-	DEFINE_INSTR(SUB, internal::IVM_SUB)
-	DEFINE_INSTR(XOR, internal::IVM_XOR)
-	DEFINE_INSTR(LEA, internal::IVM_LEA)
-	DEFINE_INSTR(CMP, internal::IVM_CMP)
-	DEFINE_INSTR(JNE, internal::IVM_JNE)
-	DEFINE_INSTR(CNA, internal::IVM_CNA)
-	DEFINE_INSTR(RET, internal::IVM_RET)
+	DEFINE_INSTR(MOV, internal::IVM_MOV, 0)
+	DEFINE_INSTR(ADD, internal::IVM_ADD, 0)
+	DEFINE_INSTR(SUB, internal::IVM_SUB, 0)
+	DEFINE_INSTR(XOR, internal::IVM_XOR, 0)
+	DEFINE_INSTR(LEA, internal::IVM_LEA, 0)
+	DEFINE_INSTR(CMP, internal::IVM_CMP, 0)
+	DEFINE_INSTR(JMP, internal::IVM_JMP, 1)
+	DEFINE_INSTR(JNE, internal::IVM_JNE, 1)
+	DEFINE_INSTR(CALL, internal::IVM_CALL, 1)
+	DEFINE_INSTR(PUSH, internal::IVM_PUSH, 1)
+	DEFINE_INSTR(POP, internal::IVM_POP, 1)
+	DEFINE_INSTR(RET, internal::IVM_RET, 0)
 
 	#undef DEFINE_INSTR
-
-	template <typename T = internal::ivm_default_t>
-	constexpr auto PUSH(internal::ivm_rgstr_t rgstr_1 = 0) -> const internal::ivm_instr_t {
-
-		return internal::build_instr<T>(1, rgstr_1, internal::IVM_PUSH);
-	}
-
-	template <typename T = internal::ivm_default_t>
-	constexpr auto POP(internal::ivm_rgstr_t rgstr_1 = 0) -> const internal::ivm_instr_t {
-
-		return internal::build_instr<T>(rgstr_1, 1, internal::IVM_POP);
-	}
 
 	//
 
@@ -218,33 +213,29 @@ namespace ivm {
 
 				break;
 			}
-			case internal::IVM_ADD: {
-
-				*dst += *src;
-
-				break;
-			}
-			case internal::IVM_SUB: {
-
-				*dst -= *src;
-
-				break;
-			}
-			case internal::IVM_AND: {
-
-				*dst &= *src;
-
-				break;
-			}
+			case internal::IVM_ADD:
+			case internal::IVM_SUB:
+			case internal::IVM_AND:
 			case internal::IVM_XOR: {
 
-				*dst ^= *src;
+				auto bitwise_op = [opcode](auto& a, const auto& b) -> void {
+
+					switch (opcode) {
+
+					case internal::IVM_ADD: a += b; break;
+					case internal::IVM_SUB: a -= b; break;
+					case internal::IVM_AND: a &= b; break;
+					case internal::IVM_XOR: a ^= b; break;
+					}
+				};
+
+				bitwise_op(*dst, *src);
 
 				break;
 			}
 			case internal::IVM_LEA: {
 
-				*dst = reinterpret_cast<std::uintptr_t>(src);
+				*dst = reinterpret_cast<internal::ivm_value_t>(src);
 
 				break;
 			}
@@ -254,20 +245,22 @@ namespace ivm {
 
 				break;
 			}
+			case internal::IVM_JMP:
 			case internal::IVM_JNE: {
 
-				if (zf == 0) {
+				if (opcode == internal::IVM_JMP || zf == 0) {
 
-					prgm_counter = *(int*)src;
+					prgm_counter = *reinterpret_cast<int*>(src);
 
 					continue;
 				}
 
 				break;
 			}
-			case internal::IVM_CNA: {
+			case internal::IVM_CALL: {
 
-				rgstr[0] = ((internal::ivm_rgstr_t(*)(...)) * src)(
+				rgstr[0] = ((internal::ivm_rgstr_t(*)(...))*src)(
+
 					rgstr[1],
 					rgstr[2],
 					rgstr[3],

@@ -32,10 +32,10 @@ Note: **SP** is reserved for the stack pointer.
     MOV(R2), 456,           // store the immediate value '456' into R2 
     PUSH(R2),               // push R2 onto the top of the stack
     SUB(SP), 8,             // subtract 8 from the stack pointer
-    MOV<int*>(SP), 789,     // store the immediate value '789' into the stack pointer memory location
+    MOV<int*>(SP), 789,     // store the immediate value '789' into the SP memory location
     XOR(R2, R2),            
     XOR(R3, R3),
-    MOV<int>(R1, SP),       // load the int from the stack pointer memory location into R1
+    MOV<int>(R1, SP),       // load the value from the SP memory location into R1
     ADD(SP), 8,             // add 8 to the stack pointer
     POP(R2),                // pop the value off the top of the stack into R2
     POP(R3)                 // pop the value off the top of the stack into R3
@@ -46,8 +46,11 @@ Note: **SP** is reserved for the stack pointer.
 
 ```
 {
-    ADD(R0), 1,             // add the immediate value '1' to R0
-    CMP(R0), 100,           // compare R0 to the immediate value '100'
+    MOV(R0), 4,             // store the immediate value '789' into R0
+    JMP(R0),                // jump to the location in R0
+    RET(),
+    ADD(R1), 1,             // add the immediate value '1' to R1
+    CMP(R1), 100,           // compare R1 to the immediate value '100'
     JNE(), 0                // jump to the start if R0 is not equal to 100
 }
 ```
@@ -64,11 +67,12 @@ Note: Jumps use the program counter rather than a memory address.
 | `XOR`           | `5`        | Perform bitwise XOR on two values.                   |
 | `LEA`           | `6`        | Load the effective address of an operand.            |
 | `CMP`           | `7`        | Compare two values and set zero flag.                |
-| `JNE`           | `8`        | Jump to a location if the values are not equal.      |
-| `CNA`           | `9`        | Call a native address.      						  |
-| `PUSH`          | `10`       | Push a value onto the stack.  						  |
-| `POP`           | `11`       | Pop a value off the stack.    						  |
-| `RET`           | `12`       | Exit program.			     						  |
+| `JMP`           | `8`        | Jump to a location unconditionally.                  |
+| `JNE`           | `9`        | Jump to a location if the values are not equal.      |
+| `CALL`          | `10`       | Call a native address outside the vm. 				  |
+| `PUSH`          | `11`       | Push a value onto the top of the stack. 			  |
+| `POP`           | `12`       | Pop a value off the top of the stack.  			  |
+| `RET`           | `13`       | Exit program.			     						  |
 
 ### Requirements
 
