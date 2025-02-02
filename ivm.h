@@ -1,4 +1,5 @@
 #pragma once
+
 #include <iostream>
 #include <vector>
 #include <cstring>
@@ -6,8 +7,9 @@
 
 namespace ivm {
 
-	constexpr auto IVM_SEED = 5432167890123456789;
-	constexpr auto IVM_STACK_SIZE = 1024;
+	constexpr std::uint64_t IVM_SEED = 5432167890123456789;
+
+	constexpr std::size_t IVM_STACK_SIZE = 1024;
 
 	namespace internal {
 
@@ -24,8 +26,6 @@ namespace ivm {
 
 		} ivm_default_t, *pivm_default_t;
 
-		//
-
 		constexpr auto IVM_MOV = 1;
 		constexpr auto IVM_ADD = 2;
 		constexpr auto IVM_SUB = 3;
@@ -40,82 +40,95 @@ namespace ivm {
 		constexpr auto IVM_POP = 12;
 		constexpr auto IVM_RET = 13;
 
-		constexpr auto IVM_DEREF_SRC = 1;
-		constexpr auto IVM_DEREF_DST = 2;
+		constexpr auto IVM_DREF_SRC = 1;
+		constexpr auto IVM_DREF_DST = 2;
+		constexpr auto IVM_DREF_CPY = IVM_DREF_SRC | IVM_DREF_DST;
 
 		constexpr auto IVM_IMMV = 1;
 
 		//
 
-		template <typename T = ivm_default_t>
-		constexpr auto calc_deref() -> const std::size_t {
+		template <typename T = ivm_default_t, typename TT = void>
+		constexpr auto calc_dref() -> const std::uint8_t {
 
-			return std::is_pointer_v<T> ? IVM_DEREF_DST : (!std::is_same_v<T, ivm_default_t> ? IVM_DEREF_SRC : 0);
+			if (std::is_pointer_v<T> && std::is_pointer_v<TT>) {
+
+				return IVM_DREF_CPY;
+			}
+			else if (std::is_pointer_v<T> && std::is_same_v<TT, void>) {
+
+				return IVM_DREF_SRC;
+			}
+			else if (std::is_pointer_v<T>) {
+
+				return IVM_DREF_DST;
+			}
+			else if (std::is_pointer_v<TT>) {
+
+				return IVM_DREF_SRC;
+			}
+
+			return 0;
 		}
 
 		template <typename T = ivm_default_t>
-		constexpr auto calc_size() -> const std::size_t {
+		constexpr auto calc_size() -> std::size_t {
 
-			using t_size = typename std::remove_pointer<T>::type;
-
-			return (sizeof(t_size) > 8 ? 7 : sizeof(t_size) - 1);
+			return std::min(sizeof(std::remove_pointer_t<T>), static_cast<std::size_t>(8));
 		}
 
-		template <typename T = ivm_default_t>
-		constexpr auto build_instr(ivm_rgstr_t rgstr_1, ivm_rgstr_t rgstr_2, ivm_opcode_t opcode) -> const ivm_instr_t {
+		template <typename T = ivm_default_t, typename TT = void>
+		constexpr auto build_instr(ivm_rgstr_t rgstr_1, ivm_rgstr_t rgstr_2, const ivm_opcode_t opcode) -> const ivm_instr_t {
 
-			constexpr auto deref = calc_deref<T>();
+			constexpr auto dref = calc_dref<T, TT>();
 			constexpr auto size = calc_size<T>();
 
-			const auto immv_flag = (rgstr_2 == 0) ? (IVM_IMMV << 7) : 0;
+			const auto immv = (rgstr_2 == 0) ? 1 : 0;
 
 			rgstr_1--; if (rgstr_2) rgstr_2--;
 
-			std::uint16_t instr = 0;
+			ivm_instr_t instr = 0;
 
-			instr |= (deref << 6);
-			instr |= (rgstr_2 << 3);
-			instr |= rgstr_1;
-			instr <<= 8;
+			instr |= static_cast<ivm_instr_t>(opcode);
+			
+			instr |= static_cast<ivm_instr_t>((rgstr_2 & 0xF)) << 8;
+			instr |= static_cast<ivm_instr_t>((rgstr_1 & 0xF)) << 12;
 
-			instr |= immv_flag;
-			instr |= (size << 4);
-			instr |= opcode;
+			instr |= static_cast<ivm_instr_t>((dref & 0x3)) << 16;
+			instr |= static_cast<ivm_instr_t>((immv & 0x1)) << 18;
+			instr |= static_cast<ivm_instr_t>((size & 0x1F)) << 19;
 
 			return instr ^ IVM_SEED;
-
-			// 04: [opcode | size | immv]
-			// 00: [deref  | reg1 | reg2]
 		}
 
-		constexpr auto get_opcode(std::uint16_t instr) -> const ivm_opcode_t {
+		constexpr auto unpack_opcode(const ivm_instr_t instr) -> const ivm_opcode_t {
 
-			return instr & 0xF;
+			return static_cast<ivm_opcode_t>(instr & 0xFF);
 		}
 
-		constexpr auto get_immv(std::uint16_t instr) -> const std::uint16_t {
+		constexpr auto unpack_immv(const ivm_instr_t instr) -> const std::uint8_t {
 
-			return (instr >> 7) & IVM_IMMV;
+			return static_cast<std::uint8_t>((instr >> 18) & 0x1);
 		}
 
-		constexpr auto get_size(std::uint16_t instr) -> const std::uint16_t {
+		constexpr auto unpack_size(const ivm_instr_t instr) -> const std::uint8_t {
 
-			return ((instr >> 4) & 0x7) + 1;
+			return static_cast<std::uint8_t>((instr >> 19) & 0x1F);
 		}
 
-		constexpr auto get_deref(std::uint8_t oprnd) -> const std::uint16_t {
+		constexpr auto unpack_dref(const ivm_instr_t instr) -> const std::uint8_t {
 
-			return (oprnd >> 6) & 0x3;
+			return static_cast<std::uint8_t>((instr >> 16) & 0x3);
 		}
 
-		constexpr auto get_rgstr_1(std::uint8_t oprnd) -> const std::uint16_t {
+		constexpr auto unpack_rgstr_1(const ivm_instr_t instr) -> const std::uint8_t {
 
-			return oprnd & 0x7;
+			return static_cast<std::uint8_t>((instr >> 12) & 0xF);
 		}
 
-		constexpr auto get_rgstr_2(std::uint8_t oprnd) -> const std::uint16_t {
+		constexpr auto unpack_rgstr_2(const ivm_instr_t instr) -> const std::uint8_t {
 
-			return (oprnd >> 3) & 0x7;
+			return static_cast<std::uint8_t>((instr >> 8) & 0xF);
 		}
 	}
 
@@ -129,11 +142,11 @@ namespace ivm {
 	constexpr auto SP = internal::ivm_rgstr_t(8);
 
 	#define DEFINE_INSTR(name, opcode, unary)							\
-	template <typename T = internal::ivm_default_t>							\
+	template <typename T = internal::ivm_default_t, typename TT = void>				\
 	constexpr auto name(internal::ivm_rgstr_t rgstr_1 = 0, internal::ivm_rgstr_t rgstr_2 = 0)	\
 		-> internal::ivm_instr_t {								\
 													\
-		return internal::build_instr<T>(rgstr_1, unary ? rgstr_1 : rgstr_2, opcode);		\
+		return internal::build_instr<T, TT>(rgstr_1, unary ? rgstr_1 : rgstr_2, opcode);	\
 	}
 
 	DEFINE_INSTR(MOV, internal::IVM_MOV, 0)
@@ -165,20 +178,16 @@ namespace ivm {
 
 		while (prgm_counter < prgm.size()) {
 
-			const auto prgm_instr = static_cast<std::uint16_t>(prgm[prgm_counter]) ^ IVM_SEED;
+			const auto instr = prgm[prgm_counter] ^ IVM_SEED;
 
-			const auto instr = static_cast<std::uint8_t>((prgm_instr & 0xFF));
-			const auto oprnd = static_cast<std::uint8_t>((prgm_instr >> 8) & 0xFF);
+			const auto opcode = internal::unpack_opcode(instr);
 
-			const auto opcode = internal::get_opcode(instr);
+			const auto dref = internal::unpack_dref(instr);
+			const auto immv = internal::unpack_immv(instr);
+			const auto size = internal::unpack_size(instr);
 
-			const auto immv = internal::get_immv(instr);
-			const auto size = internal::get_size(instr);
-
-			const auto deref = internal::get_deref(oprnd);
-
-			const auto rgstr_1 = internal::get_rgstr_1(oprnd);
-			const auto rgstr_2 = internal::get_rgstr_2(oprnd);
+			const auto rgstr_1 = internal::unpack_rgstr_1(instr);
+			const auto rgstr_2 = internal::unpack_rgstr_2(instr);
 
 			auto src = (opcode == internal::IVM_POP)
 
@@ -194,15 +203,16 @@ namespace ivm {
 
 				: reinterpret_cast<internal::ivm_value_t*>(&rgstr[rgstr_1]);
 
-			if (deref == internal::IVM_DEREF_SRC) {
+			if (dref & internal::IVM_DREF_SRC) {
 
 				src = *reinterpret_cast<internal::ivm_value_t**>(src);
 			}
-			else if (deref == internal::IVM_DEREF_DST) {
+
+			if (dref & internal::IVM_DREF_DST) {
 
 				dst = *reinterpret_cast<internal::ivm_value_t**>(dst);
 			}
-
+		
 			switch (opcode) {
 
 			case internal::IVM_PUSH:
@@ -226,6 +236,7 @@ namespace ivm {
 					case internal::IVM_SUB: a -= b; break;
 					case internal::IVM_AND: a &= b; break;
 					case internal::IVM_XOR: a ^= b; break;
+
 					}
 				};
 
