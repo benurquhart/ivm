@@ -1,3 +1,21 @@
+/*
+
+	Copyright 2025 Ben Urquhart
+
+	Licensed under the Apache License, Version 2.0 (the "License");
+	you may not use this file except in compliance with the License.
+	You may obtain a copy of the License at:
+
+		http://www.apache.org/licenses/LICENSE-2.0
+
+	Unless required by applicable law or agreed to in writing, software
+	distributed under the License is distributed on an "AS IS" BASIS,
+	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+	See the License for the specific language governing permissions and
+	limitations under the License.
+
+*/
+
 #pragma once
 
 #include <iostream>
@@ -10,6 +28,8 @@ namespace ivm {
 	constexpr std::uint64_t IVM_SEED = 5432167890123456789;
 
 	constexpr std::size_t IVM_STACK_SIZE = 1024;
+
+	constexpr std::uint8_t IVM_DEBUG = 1;
 
 	namespace internal {
 
@@ -130,6 +150,157 @@ namespace ivm {
 
 			return static_cast<std::uint8_t>((instr >> 8) & 0xF);
 		}
+
+		template <typename T>
+		auto cast_impl(std::true_type, T v) -> ivm_instr_t {
+
+			return reinterpret_cast<ivm_instr_t>(v);
+		}
+
+		template <typename T>
+		auto cast_impl(std::false_type, T v) -> ivm_instr_t {
+
+			return static_cast<ivm_instr_t>(v);
+		}
+
+		auto interpreter(const std::vector<ivm_instr_t>& prgm) -> void {
+
+			auto prgm_counter = 0, zf = 0;
+
+			ivm_rgstr_t rgstr[8] = { 0 };
+
+			ivm_stack_t stack[IVM_STACK_SIZE] = { 0 };
+
+			rgstr[7] = (reinterpret_cast<std::uintptr_t>(&stack[0])) + IVM_STACK_SIZE;
+
+			while (prgm_counter < prgm.size()) {
+
+				const auto instr = prgm[prgm_counter] ^ IVM_SEED;
+
+				const auto opcode = unpack_opcode(instr);
+
+				const auto dref = unpack_dref(instr);
+				const auto immv = unpack_immv(instr);
+				const auto size = unpack_size(instr);
+
+				const auto rgstr_1 = unpack_rgstr_1(instr);
+				const auto rgstr_2 = unpack_rgstr_2(instr);
+
+				auto src = (opcode == IVM_POP)
+
+					? reinterpret_cast<ivm_value_t*>(rgstr[7])
+
+					: (immv ? const_cast<ivm_value_t*>(&prgm[prgm_counter + 1])
+
+						: reinterpret_cast<ivm_value_t*>(&rgstr[rgstr_2]));
+
+				auto dst = (opcode == IVM_PUSH)
+
+					? reinterpret_cast<ivm_value_t*>(rgstr[7] -= size)
+
+					: reinterpret_cast<ivm_value_t*>(&rgstr[rgstr_1]);
+
+				if (dref & IVM_DREF_SRC) {
+
+					src = *reinterpret_cast<ivm_value_t**>(src);
+				}
+
+				if (dref & IVM_DREF_DST) {
+
+					dst = *reinterpret_cast<ivm_value_t**>(dst);
+				}
+
+				switch (opcode) {
+
+				case IVM_PUSH:
+				case IVM_POP:
+				case IVM_MOV: {
+
+					memcpy(dst, src, size);
+
+					break;
+				}
+				case IVM_ADD:
+				case IVM_SUB:
+				case IVM_AND:
+				case IVM_XOR: {
+
+					auto bitwise_op = [opcode](auto& a, const auto& b) -> void {
+
+						switch (opcode) {
+
+						case IVM_ADD: a += b; break;
+						case IVM_SUB: a -= b; break;
+						case IVM_AND: a &= b; break;
+						case IVM_XOR: a ^= b; break;
+
+						}
+					};
+
+					bitwise_op(*dst, *src);
+
+					break;
+				}
+				case IVM_LEA: {
+
+					*dst = reinterpret_cast<ivm_value_t>(src);
+
+					break;
+				}
+				case IVM_CMP: {
+
+					zf = ((*dst - *src) == 0);
+
+					break;
+				}
+				case IVM_JMP:
+				case IVM_JNE: {
+
+					if (opcode == IVM_JMP || zf == 0) {
+
+						prgm_counter = *reinterpret_cast<int*>(src);
+
+						continue;
+					}
+
+					break;
+				}
+				case IVM_CALL: {
+
+					const auto ptr = (void**)rgstr[7];
+
+					rgstr[0] = ((ivm_rgstr_t(*)(...))*src)(ptr[0], ptr[1], ptr[2], ptr[3], ptr[4], ptr[5], ptr[6], ptr[7], ptr[8], ptr[10]);
+
+					break;
+				}
+				case IVM_RET: {
+
+					prgm_counter = static_cast<int>(prgm.size());
+
+					break;
+				}
+				}
+
+				if (opcode == IVM_POP) {
+
+					rgstr[7] += size;
+				}
+
+				prgm_counter += immv ? 2 : 1;
+			};
+
+			if (IVM_DEBUG) {
+
+				std::cout << "R0: 0x" << std::hex << rgstr[0] << std::endl;
+				std::cout << "R1: 0x" << std::hex << rgstr[1] << std::endl;
+				std::cout << "R2: 0x" << std::hex << rgstr[2] << std::endl;
+				std::cout << "R3: 0x" << std::hex << rgstr[3] << std::endl;
+				std::cout << "R4: 0x" << std::hex << rgstr[4] << std::endl;
+				std::cout << "R5: 0x" << std::hex << rgstr[5] << std::endl;
+				std::cout << "R6: 0x" << std::hex << rgstr[6] << std::endl;
+				std::cout << "SP: 0x" << std::hex << rgstr[7] << std::endl;
+			}
+		}
 	}
 
 	constexpr auto R0 = internal::ivm_rgstr_t(1);
@@ -166,148 +337,16 @@ namespace ivm {
 
 	//
 
-	auto ivm(const std::vector<internal::ivm_instr_t>& prgm, bool dbg = true) -> void {
+	template <typename... Args>
+	void ivm(Args... args) {
 
-		auto prgm_counter = 0, zf = 0;
+		auto universal_cast = [](auto val) -> internal::ivm_instr_t {
 
-		internal::ivm_rgstr_t rgstr[8] = { 0 };
+			using T = decltype(val);
 
-		internal::ivm_stack_t stack[IVM_STACK_SIZE] = { 0 };
-
-		rgstr[7] = (reinterpret_cast<std::uintptr_t>(&stack[0])) + IVM_STACK_SIZE;
-
-		while (prgm_counter < prgm.size()) {
-
-			const auto instr = prgm[prgm_counter] ^ IVM_SEED;
-
-			const auto opcode = internal::unpack_opcode(instr);
-
-			const auto dref = internal::unpack_dref(instr);
-			const auto immv = internal::unpack_immv(instr);
-			const auto size = internal::unpack_size(instr);
-
-			const auto rgstr_1 = internal::unpack_rgstr_1(instr);
-			const auto rgstr_2 = internal::unpack_rgstr_2(instr);
-
-			auto src = (opcode == internal::IVM_POP)
-
-				? reinterpret_cast<internal::ivm_value_t*>(rgstr[7])
-
-				: (immv ? const_cast<internal::ivm_value_t*>(&prgm[prgm_counter + 1])
-
-					: reinterpret_cast<internal::ivm_value_t*>(&rgstr[rgstr_2]));
-
-			auto dst = (opcode == internal::IVM_PUSH)
-
-				? reinterpret_cast<internal::ivm_value_t*>(rgstr[7] -= size)
-
-				: reinterpret_cast<internal::ivm_value_t*>(&rgstr[rgstr_1]);
-
-			if (dref & internal::IVM_DREF_SRC) {
-
-				src = *reinterpret_cast<internal::ivm_value_t**>(src);
-			}
-
-			if (dref & internal::IVM_DREF_DST) {
-
-				dst = *reinterpret_cast<internal::ivm_value_t**>(dst);
-			}
-		
-			switch (opcode) {
-
-			case internal::IVM_PUSH:
-			case internal::IVM_POP:
-			case internal::IVM_MOV: {
-
-				memcpy(dst, src, size);
-
-				break;
-			}
-			case internal::IVM_ADD:
-			case internal::IVM_SUB:
-			case internal::IVM_AND:
-			case internal::IVM_XOR: {
-
-				auto bitwise_op = [opcode](auto& a, const auto& b) -> void {
-
-					switch (opcode) {
-
-					case internal::IVM_ADD: a += b; break;
-					case internal::IVM_SUB: a -= b; break;
-					case internal::IVM_AND: a &= b; break;
-					case internal::IVM_XOR: a ^= b; break;
-
-					}
-				};
-
-				bitwise_op(*dst, *src);
-
-				break;
-			}
-			case internal::IVM_LEA: {
-
-				*dst = reinterpret_cast<internal::ivm_value_t>(src);
-
-				break;
-			}
-			case internal::IVM_CMP: {
-
-				zf = ((*dst - *src) == 0);
-
-				break;
-			}
-			case internal::IVM_JMP:
-			case internal::IVM_JNE: {
-
-				if (opcode == internal::IVM_JMP || zf == 0) {
-
-					prgm_counter = *reinterpret_cast<int*>(src);
-
-					continue;
-				}
-
-				break;
-			}
-			case internal::IVM_CALL: {
-
-				rgstr[0] = ((internal::ivm_rgstr_t(*)(...))*src)(
-
-					rgstr[1],
-					rgstr[2],
-					rgstr[3],
-					rgstr[4],
-					rgstr[5],
-					rgstr[6]
-				);
-
-				break;
-			}
-			case internal::IVM_RET: {
-
-				prgm_counter = static_cast<int>(prgm.size());
-
-				break;
-			}
-			}
-
-			if (opcode == internal::IVM_POP) {
-
-				rgstr[7] += size;
-			}
-
-			prgm_counter += immv ? 2 : 1;
+			return internal::cast_impl(std::is_pointer<T>{}, val);
 		};
 
-		if (dbg) {
-
-			std::cout << "R0: 0x" << std::hex << rgstr[0] << std::endl;
-			std::cout << "R1: 0x" << std::hex << rgstr[1] << std::endl;
-			std::cout << "R2: 0x" << std::hex << rgstr[2] << std::endl;
-			std::cout << "R3: 0x" << std::hex << rgstr[3] << std::endl;
-			std::cout << "R4: 0x" << std::hex << rgstr[4] << std::endl;
-			std::cout << "R5: 0x" << std::hex << rgstr[5] << std::endl;
-			std::cout << "R6: 0x" << std::hex << rgstr[6] << std::endl;
-			std::cout << "SP: 0x" << std::hex << rgstr[7] << std::endl;
-		}
+		internal::interpreter({ universal_cast(args)... });
 	}
 }

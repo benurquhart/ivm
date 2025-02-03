@@ -9,7 +9,7 @@ Language Overview
 
 ### Registers, Loads, and Stores
 
-IVM comes with 8 registers **R0**, **R1**, **R2**, **R3**, **R4**, **R5**, **R6**, **SP**. Registers can be used in the following formats:
+IVM comes with 8 registers `R0`, `R1`, `R2`, `R3`, `R4`, `R5`, `R6`, `SP`. Registers can be used in the following formats:
 
 * Instruction(Register, Register)
 * Instruction(Register), Immediate value
@@ -22,7 +22,7 @@ IVM comes with 8 registers **R0**, **R1**, **R2**, **R3**, **R4**, **R5**, **R6*
     MOV<int*, int>(R2, R0)    // store the byte in R0 into the memory location pointed to by R2
 }
 ```
-Note: **SP** is reserved for the stack pointer.
+Note: `SP` is reserved for the stack pointer.
 
 ### Stack, Stack pointer
 
@@ -56,7 +56,30 @@ Note: **SP** is reserved for the stack pointer.
 ```
 Note: Jumps use the program counter rather than a memory address.
 
-### Instruction Set Overview
+### Calls, Branching
+
+```
+{
+    PUSH(), "Enter a string: ",   
+    CALL(), printf,            
+    ADD(SP), 8,
+    SUB(SP), 100,             // allocate 100 bytes on the stack
+    MOV(R0, SP),              // store the stack pointer
+    PUSH(), stdin,            // push the file pointer
+    PUSH(), 100,              // push the size of the buffer
+    PUSH(R0),                 // push the stored buffer pointer
+    CALL(), fgets,            // call fgets
+    ADD(SP), 24,              // clean up stack (3 * 8 bytes)
+    PUSH(R0),
+    PUSH(), "You entered: %s",
+    CALL(), printf,
+    ADD(SP), 116,             // clean up stack (2 * 8 + 100 bytes)
+}
+```
+Note: The call stack is 8-byte aligned and can hold 10 arguments.
+
+Instruction Set Overview
+-----------------
 
 | **Instruction** | **Opcode** | **Description**                                                                          |
 |-----------------|------------|------------------------------------------------------------------------------------------|
@@ -74,6 +97,12 @@ Note: Jumps use the program counter rather than a memory address.
 | `POP`           | `12`       | Pop the top value off the stack and store it in a register. 			                  |
 | `RET`           | `13`       | Exit program.			     						                                      |
 
-### Requirements
+Requirements
+-----------------
 
-* **C++14** or newer *(e.g., GCC 5.0+, Clang 3.4+, MSVC 2015+)*
+**C++14** or newer *(e.g., GCC 5.0+, Clang 3.4+, MSVC 2015+)*
+
+License
+-----------------
+
+IVM is licensed under the Apache License, Version 2.0
