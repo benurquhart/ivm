@@ -56,7 +56,7 @@ Note: `SP` is reserved for the stack pointer.
 ```
 Note: Jumps use the program counter rather than a memory address.
 
-### Calls, Branching
+### Calls, Native operations
 
 ```
 {
@@ -100,7 +100,8 @@ Instruction Set Overview
 Requirements
 -----------------
 
-**C++14** or newer *(e.g., GCC 5.0+, Clang 3.4+, MSVC 2015+)*
+* **C++14** or newer *(e.g., GCC 5.0+, Clang 3.4+, MSVC 2015+)*
+* **Optimization** (`-O1` and Above) for best results.
 
 License
 -----------------
