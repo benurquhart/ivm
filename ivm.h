@@ -71,19 +71,19 @@ namespace ivm {
 		template <typename T = ivm_default_t, typename TT = void>
 		constexpr auto calc_dref() -> const std::uint8_t {
 
-			if (std::is_pointer_v<T> && std::is_pointer_v<TT>) {
+			if (std::is_pointer<T>::value && std::is_pointer<TT>::value) {
 
 				return IVM_DREF_CPY;
 			}
-			else if (std::is_pointer_v<T> && std::is_same_v<TT, void>) {
+			else if (std::is_pointer<T>::value && std::is_same<TT, void>::value) {
 
 				return IVM_DREF_SRC;
 			}
-			else if (std::is_pointer_v<T>) {
+			else if (std::is_pointer<T>::value) {
 
 				return IVM_DREF_DST;
 			}
-			else if (std::is_pointer_v<TT>) {
+			else if (std::is_pointer<TT>::value) {
 
 				return IVM_DREF_SRC;
 			}
