@@ -179,6 +179,11 @@ namespace ivm {
 
 				const auto opcode = unpack_opcode(instr);
 
+				if(opcode == IVM_RET) {
+
+					break;
+				}
+
 				const auto dref = unpack_dref(instr);
 				const auto immv = unpack_immv(instr);
 				const auto size = unpack_size(instr);
@@ -270,12 +275,6 @@ namespace ivm {
 					const auto ptr = (void**)rgstr[7];
 
 					rgstr[0] = ((ivm_rgstr_t(*)(...))*src)(ptr[0], ptr[1], ptr[2], ptr[3], ptr[4], ptr[5], ptr[6], ptr[7], ptr[8], ptr[10]);
-
-					break;
-				}
-				case IVM_RET: {
-
-					prgm_counter = static_cast<int>(prgm.size());
 
 					break;
 				}
